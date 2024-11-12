@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# shellcheck disable=SC2155
+set -euo pipefail
+trap "exit" INT
+# shellcheck source=./../../dev/lib/utils.sh
+source "${BASH_SOURCE%/*}/../../dev/lib/utils.sh"
+
+curl_opts=(
+  --retry 5
+  --retry-delay 10
+  --retry-max-time 60
+  --connect-timeout 10
+  --max-time 300
+  --limit-rate 250K
+  --keepalive-time 60
+)
+
+urls=(
+  "http://www.microbesonline.org/fasttree/FastTree.c"
+  "http://www.microbesonline.org/fasttree/ChangeLog"
+  "http://www.microbesonline.org/fasttree"
+)
+
+for url in ${urls[@]}; do
+  nicely curl ${curl_opts[@]} -fsSLO "$url"
+done
+
+mv fasttree fasttree.html
+
+now="$(datetime_safe)"
+
+git diff
+
+export GIT_PAGER=''
+if ! git diff --quiet; then
+  version="$(grep -oP '#define FT_VERSION "\K[^"]+' FastTree.c)"
+  echo "${version}" > "version.txt"
+  echo "${now}" >> "version.txt"
+  exit 0
+fi
+
+exit 1

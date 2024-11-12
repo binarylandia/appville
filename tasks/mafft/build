@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+# shellcheck disable=SC2155
+set -euo pipefail
+trap "exit" INT
+# shellcheck source=./../../dev/lib/utils.sh
+source "${BASH_SOURCE%/*}/../../dev/lib/utils.sh"
+
+export CROSS_COMPILE="${CROSS_COMPILE:?}"
+export BUILD_TIME="${BUILD_TIME:?}"
+export TASK_NAME="${TASK_NAME:?}"
+export TASK_DIR="${TASK_DIR:?}"
+export BUILD_DIR="${BUILD_DIR:?}"
+export INSTALL_DIR="${INSTALL_DIR:?}"
+export OUT_DIR="${OUT_DIR:?}"
+
+NAME="${TASK_NAME}"
+REPO_URL="https://gitlab.com/sysimm/mafft"
+VERSION="7.526"
+
+build_dir="$(abspath "${BUILD_DIR}")"
+install_dir="$(abspath "${INSTALL_DIR}")"
+out_dir="$(abspath "${OUT_DIR}")"
+
+mkdir -p "${build_dir}" "${install_dir}" "${out_dir}"
+pushd "${build_dir}" >/dev/null
+{
+  src_dir="${NAME}-${VERSION}"
+
+  if [ ! -d "${src_dir}" ]; then
+    nicely git clone --quiet --recursive --depth=1 -b "v${VERSION}" "${REPO_URL}" "${src_dir}"
+  fi
+
+  pushd "${src_dir}" >/dev/null
+  {
+    export CC="ccache ${CC}"
+    export CXX="ccache ${CXX}"
+
+    # HACK: ifdefs check for "mingw", but it's not set by our compiler
+    case "${CROSS_COMPILE}" in
+    x86_64-pc-windows-gnu )
+      export CC="${CC} -Dmingw"
+    ;;
+    esac
+
+    pushd "core" >/dev/null
+    {
+      sed -i "s|PREFIX = /usr/local|PREFIX = ${install_dir}|g" "Makefile"
+      sed -i "s|CC =|CC ?=|g" "Makefile"
+      sed -i "s|CFLAGS =|CFLAGS ?=|g" "Makefile"
+      sed -i "s|STRIP =|STRIP ?=|g" "Makefile"
+      sed -i "s|#ENABLE_ATOMIC =|ENABLE_ATOMIC =|g" "Makefile"
+
+      # HACK: programs on Windows have .exe extensions
+      case "${CROSS_COMPILE}" in
+        x86_64-pc-windows-gnu )
+          sed -i 's|cp $(PERLPROGS) $(PROGS) ../binaries|cp $(PERLPROGS) $(PROGS:=.exe) ../binaries|' Makefile
+          sed -i 's|$(INSTALL) $(PROGS)|$(INSTALL) $(PROGS:=.exe)|' Makefile
+          sed -i 's|chmod 755 $(PROGS)|chmod 755 $(PROGS:=.exe)|' Makefile
+        ;;
+      esac
+
+      nicely make -s -j$(nproc) install 2>&1 | log "${build_dir}/build.log"
+    }
+    popd >/dev/null
+
+    pushd "extensions" >/dev/null
+    {
+      sed -i "s|PREFIX = /usr/local|PREFIX = ${install_dir}|g" "Makefile"
+
+      # HACK: programs on Windows have .exe extensions
+      case "${CROSS_COMPILE}" in
+        x86_64-pc-windows-gnu )
+          sed -i 's|cp $(PROGS) ../binaries|cp $(PROGS:=.exe) ../binaries|' Makefile
+          sed -i 's|mv mxscarna_src/mxscarna mxscarnamod|mv mxscarna_src/mxscarna.exe mxscarnamod.exe|' Makefile
+          sed -i 's|$(INSTALL) $(PROGS)|$(INSTALL) $(PROGS:=.exe)|' Makefile
+          sed -i 's|chmod 755 $(PROGS)|chmod 755 $(PROGS:=.exe)|' Makefile
+        ;;
+      esac
+
+      pushd "mxscarna_src" >/dev/null
+      {
+        sed -i "s|CXX =|CXX ?=|g" "Makefile"
+        sed -i "s|CXXFLAGS =|CXXFLAGS ?=|g" "Makefile"
+      }
+      popd >/dev/null
+
+      nicely make -s -j$(nproc) install 2>&1 | log "${build_dir}/build.log"
+    }
+    popd >/dev/null
+
+    pushd "${install_dir}/bin" >/dev/null
+    {
+      ln -sf "../libexec/mafft/mafft-distance" "mafft-distance"
+      ln -sf "../libexec/mafft/mafft-profile" "mafft-profile"
+    }
+    popd >/dev/null
+
+    package_all "${install_dir}" "${out_dir}/${NAME}-${VERSION}-static-${CROSS_COMPILE}-${BUILD_TIME}"
+  }
+  popd >/dev/null
+}
+popd >/dev/null
