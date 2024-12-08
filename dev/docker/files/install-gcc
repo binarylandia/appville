@@ -4,9 +4,33 @@ set -euxo pipefail
 dest=${1:-"/usr/local"}
 mkdir -p "${dest}"
 
-curl -fsSL "https://github.com/binarylandia/build_gcc/releases/download/2024-11-03_12-57-14/gcc-14.2.0-host-x86_64-unknown-linux-gnu.2.17-2024-11-03_12-57-14.tar.xz" \
-  | pixz -dp "$(nproc)" \
-  | tar -C "${dest}" -x
+URL="https://github.com/binarylandia/build_gcc/releases/download/2024-11-03_12-57-14/gcc-14.2.0-host-x86_64-unknown-linux-gnu.2.17-2024-11-03_12-57-14.tar.xz"
+REFERER=$(echo "${URL}" | sed -e 's|^[^/]*//||' -e 's|/.*$||')
+USER_AGENT="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+JOBS=16
+TEMP_FILE=$(mktemp)
+aria2c \
+  --allow-overwrite=true \
+  --allow-piece-length-change=true \
+  --console-log-level=error \
+  --continue=false \
+  --download-result=hide \
+  --file-allocation=none \
+  --follow-metalink=mem \
+  --max-concurrent-downloads=${JOBS} \
+  --max-connection-per-server=${JOBS} \
+  --max-tries=3 \
+  --min-split-size=1M \
+  --referer="${REFERER}" \
+  --split=${JOBS} \
+  --summary-interval=0 \
+  --timeout=120 \
+  --user-agent="${USER_AGENT}" \
+  -o "${TEMP_FILE}" \
+  "${URL}" \
+  >/dev/null
+pixz -dp "$(nproc)" < "${TEMP_FILE}" | tar -C "${dest}" -x
+rm -f "${TEMP_FILE}"
 
 ls "${dest}/bin/gcc"
 gcc -v

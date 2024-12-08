@@ -21,6 +21,7 @@ RUN set -euxo pipefail >/dev/null \
 && export DEBIAN_FRONTEND=noninteractive \
 && apt-get update -qq --yes \
 && apt-get install -qq --no-install-recommends --yes \
+  aria2 \
   autoconf \
   automake \
   autopoint \

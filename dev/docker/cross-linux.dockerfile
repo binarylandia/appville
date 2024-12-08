@@ -27,6 +27,7 @@ RUN set -euxo pipefail >/dev/null \
 && dpkg --add-architecture ${CROSS_ARCH_DEBIAN} \
 && apt-get update -qq --yes \
 && apt-get install -qq --no-install-recommends --yes \
+  aria2 \
   autoconf \
   automake \
   autopoint \
