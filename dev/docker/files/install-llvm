@@ -4,7 +4,7 @@ set -euxo pipefail
 dest=${1:-"/usr/local"}
 mkdir -p "${dest}"
 
-URL="https://github.com/binarylandia/build_llvm/releases/download/llvm-19.1.5-2024-12-03_22-45-06/llvm-19.1.5-2024-12-03_22-45-06.tar.xz"
+URL="https://github.com/binarylandia/build_llvm/releases/download/llvm-19.1.5-2024-12-08_22-14-18/llvm-19.1.5-2024-12-08_22-14-18.tar.xz"
 REFERER=$(echo "${URL}" | sed -e 's|^[^/]*//||' -e 's|/.*$||')
 USER_AGENT="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 JOBS=16
