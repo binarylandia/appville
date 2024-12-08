@@ -82,8 +82,8 @@ ENV HOST_GCC_DIR="/usr/local"
 ENV HOSTCC="${HOST_GCC_DIR}/bin/gcc"
 ENV HOSTCXX="${HOST_GCC_DIR}/bin/g++"
 ENV HOSTFC="${HOST_GCC_DIR}/bin/gfortran"
-ENV LIBRARY_PATH="/usr/lib:/usr/lib64:/usr/local/lib:/usr/local/lib64:/usr/lib/${HOST_TUPLE_DEBIAN}"
-ENV LD_LIBRARY_PATH="/usr/lib:/usr/lib64:/usr/local/lib:/usr/local/lib64:/usr/lib/${HOST_TUPLE_DEBIAN}"
+ENV HOST_LIBRARY_PATH="/usr/lib:/usr/lib64:/usr/local/lib:/usr/local/lib64:/usr/lib/${HOST_TUPLE_DEBIAN}"
+ENV HOST_LD_LIBRARY_PATH="/usr/lib:/usr/lib64:/usr/local/lib:/usr/local/lib64:/usr/lib/${HOST_TUPLE_DEBIAN}"
 
 COPY --link "dev/docker/files/install-gcc" "/"
 RUN /install-gcc "${HOST_GCC_DIR}"
@@ -120,6 +120,33 @@ ENV STRIP_${CROSS_COMPILE}="${CROSS_GCC_DIR}/bin/${CROSS_GCC_TRIPLET}-strip"
 COPY --link "dev/docker/files/install-gcc-cross" "/"
 RUN /install-gcc-cross "${CROSS_GCC_TRIPLET}" "${CROSS_GCC_DIR}"
 
+
+ENV PREFIX_CROSS="/usr/local/${CROSS_COMPILE}"
+ENV PKG_CONFIG_ALLOW_CROSS="1"
+ENV PKG_CONFIG_SYSROOT_DIR="${PREFIX_CROSS}"
+ENV PKG_CONFIG_PATH="${PREFIX_CROSS}/lib/pkgconfig:/usr/local/lib/pkgconfig"
+
+
+ENV OPENBLAS_LIB_DIR="${PREFIX_CROSS}/lib"
+COPY --link "dev/docker/files/install-openblas" "/"
+RUN /install-openblas "${CROSS_COMPILE}" "${PREFIX_CROSS}"
+
+COPY --link "dev/docker/files/install-libbzip2" "/"
+RUN /install-libbzip2 "${CROSS_COMPILE}" "${PREFIX_CROSS}"
+
+COPY --link "dev/docker/files/install-liblzma" "/"
+RUN /install-liblzma "${CROSS_COMPILE}" "${PREFIX_CROSS}"
+
+COPY --link "dev/docker/files/install-libz" "/"
+RUN /install-libz "${CROSS_COMPILE}" "${PREFIX_CROSS}"
+
+COPY --link "dev/docker/files/install-libzstd" "/"
+RUN /install-libzstd "${CROSS_COMPILE}" "${PREFIX_CROSS}"
+
+ENV C_INCLUDE_PATH="${PREFIX_CROSS}/include"
+ENV CPLUS_INCLUDE_PATH="${PREFIX_CROSS}/include"
+ENV LIBRARY_PATH="${PREFIX_CROSS}/lib:${PREFIX_CROSS}/lib64"
+ENV LD_LIBRARY_PATH="${PREFIX_CROSS}/lib:${PREFIX_CROSS}/lib64"
 
 ARG USER=user
 ARG GROUP=user
