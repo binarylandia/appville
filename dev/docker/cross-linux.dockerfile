@@ -82,8 +82,8 @@ ENV HOST_GCC_DIR="/usr/local"
 ENV HOSTCC="${HOST_GCC_DIR}/bin/gcc"
 ENV HOSTCXX="${HOST_GCC_DIR}/bin/g++"
 ENV HOSTFC="${HOST_GCC_DIR}/bin/gfortran"
-ENV HOST_LIBRARY_PATH="/usr/lib:/usr/lib64:/usr/local/lib:/usr/local/lib64:/usr/lib/${HOST_TUPLE_DEBIAN}"
-ENV HOST_LD_LIBRARY_PATH="/usr/lib:/usr/lib64:/usr/local/lib:/usr/local/lib64:/usr/lib/${HOST_TUPLE_DEBIAN}"
+#ENV LIBRARY_PATH="/usr/local/lib:/usr/local/lib64:/usr/lib:/usr/lib64:/usr/lib/${HOST_TUPLE_DEBIAN}"
+#ENV LD_LIBRARY_PATH="/usr/local/lib:/usr/local/lib64:/usr/lib:/usr/lib64:/usr/lib/${HOST_TUPLE_DEBIAN}"
 
 COPY --link "dev/docker/files/install-gcc" "/"
 RUN /install-gcc "${HOST_GCC_DIR}"
@@ -145,8 +145,7 @@ RUN /install-libzstd "${CROSS_COMPILE}" "${PREFIX_CROSS}"
 
 ENV C_INCLUDE_PATH="${PREFIX_CROSS}/include"
 ENV CPLUS_INCLUDE_PATH="${PREFIX_CROSS}/include"
-ENV LIBRARY_PATH="${PREFIX_CROSS}/lib:${PREFIX_CROSS}/lib64"
-ENV LD_LIBRARY_PATH="${PREFIX_CROSS}/lib:${PREFIX_CROSS}/lib64"
+ENV LIBRARY_PATH="${PREFIX_CROSS}/lib:${PREFIX_CROSS}/lib64:${LIBRARY_PATH}"
 
 ARG USER=user
 ARG GROUP=user

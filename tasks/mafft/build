@@ -37,7 +37,8 @@ pushd "${build_dir}" >/dev/null
 
     # HACK: ifdefs check for "mingw", but it's not set by our compiler
     case "${CROSS_COMPILE}" in
-    x86_64-pc-windows-gnu )
+    *mingw* | *windows* )
+      export ext=".exe"
       export CC="${CC} -Dmingw"
     ;;
     esac
@@ -52,7 +53,7 @@ pushd "${build_dir}" >/dev/null
 
       # HACK: programs on Windows have .exe extensions
       case "${CROSS_COMPILE}" in
-        x86_64-pc-windows-gnu )
+        *mingw* | *windows* )
           sed -i 's|cp $(PERLPROGS) $(PROGS) ../binaries|cp $(PERLPROGS) $(PROGS:=.exe) ../binaries|' Makefile
           sed -i 's|$(INSTALL) $(PROGS)|$(INSTALL) $(PROGS:=.exe)|' Makefile
           sed -i 's|chmod 755 $(PROGS)|chmod 755 $(PROGS:=.exe)|' Makefile
@@ -69,7 +70,7 @@ pushd "${build_dir}" >/dev/null
 
       # HACK: programs on Windows have .exe extensions
       case "${CROSS_COMPILE}" in
-        x86_64-pc-windows-gnu )
+        *mingw* | *windows* )
           sed -i 's|cp $(PROGS) ../binaries|cp $(PROGS:=.exe) ../binaries|' Makefile
           sed -i 's|mv mxscarna_src/mxscarna mxscarnamod|mv mxscarna_src/mxscarna.exe mxscarnamod.exe|' Makefile
           sed -i 's|$(INSTALL) $(PROGS)|$(INSTALL) $(PROGS:=.exe)|' Makefile
