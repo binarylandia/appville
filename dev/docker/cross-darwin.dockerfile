@@ -152,7 +152,9 @@ ENV TERM="xterm-256color"
 ENV HOME="/home/${USER}"
 
 COPY --link "dev/docker/files/create-user" "/"
-RUN /create-user
-
+RUN set -euxo pipefail >/dev/null \
+&& /create-user \
+&& mkdir -p "${HOME}/.cargo" \
+&& chown "${UID}:${GID}" "${HOME}/.cargo"
 
 USER ${USER}
