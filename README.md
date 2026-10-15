@@ -12,6 +12,12 @@
 
 Cross-compiles command-line tools as portable, self-contained binaries for Linux, macOS, and Windows. No runtime dependencies required.
 
+## Patched upstream tools
+
+Some tools are upstream releases with small fixes. Their tasks download the upstream source by checksum and apply the numbered patch files in `tasks/<name>/patches/`; each patch file explains the defect it fixes. The packages carry the patches in `share/<name>/patches/`.
+
+- **wasm-bindgen**: the [wasm-bindgen](https://github.com/wasm-bindgen/wasm-bindgen) CLI, built from its crates.io packages with upstream's `Cargo.lock`. In Emscripten mode, upstream moves the start function of the linker, which sets up the shared memory of a threaded module, and the `emcc` link of every module with threads (`-pthread`) fails. The patch keeps that start function in place
+
 ## Features
 
 - Fully static linking (no shared library dependencies)
