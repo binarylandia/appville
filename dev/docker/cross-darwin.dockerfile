@@ -139,6 +139,24 @@ ENV CPLUS_INCLUDE_PATH="${PREFIX_CROSS}/include"
 ENV LIBRARY_PATH="${PREFIX_CROSS}/lib:${PREFIX_CROSS}/lib64:${LIBRARY_PATH}"
 ENV LD_LIBRARY_PATH="${PREFIX_CROSS}/lib:${PREFIX_CROSS}/lib64:${LD_LIBRARY_PATH}"
 
+# Rust: osxcross links the target, the host GCC links build scripts and proc
+# macros.
+ENV HOST_CC="${HOSTCC}"
+ENV HOST_CXX="${HOSTCXX}"
+ENV CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER="${HOSTCC}"
+ENV CARGO_TARGET_${CROSS_COMPILE_UPPER}_LINKER="${OSX_CROSS_PATH}/bin/${CROSS_APPLE_TRIPLET}-clang"
+ENV CARGO_TARGET_${CROSS_COMPILE_UPPER}_AR="${OSX_CROSS_PATH}/bin/${CROSS_APPLE_TRIPLET}-ar"
+
+# The Rust toolchain of rust-toolchain.toml with the target of this image. The
+# container runs as the host user, so both homes are writable by every user;
+# dev/cross/build keeps the cargo registry in .cache/cargo of the project.
+ENV RUSTUP_HOME="/usr/local/rustup"
+ENV CARGO_HOME="/usr/local/cargo"
+ENV PATH="${CARGO_HOME}/bin:${PATH}"
+COPY --link "dev/docker/files/fetch" "dev/docker/files/checksums" "dev/docker/files/install-rust" "/"
+COPY --link "rust-toolchain.toml" "/tmp/rust/"
+RUN /install-rust "/tmp/rust" "${CROSS_COMPILE}"
+
 ARG USER=user
 ARG GROUP=user
 ARG UID

@@ -75,6 +75,7 @@ docker_file_hash="$(
   file_hash \
     .dockerignore \
     .gitignore \
+    rust-toolchain.toml \
     $(find dev/lib -type f) \
     $(find dev/docker -type f)
 )"

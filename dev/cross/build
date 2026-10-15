@@ -81,6 +81,23 @@ function build() {
   declare -x FCFLAGS="${FCFLAGS:-} ${common_flags} ${fcflags}"
   declare -x LDFLAGS="${LDFLAGS:-} ${common_flags} ${ldflags}"
 
+  # Rust: link the C runtime statically where the target allows it, so the
+  # binaries run without a matching runtime on the system. The musl toolchains
+  # do not find these libraries on their own. Cargo applies RUSTFLAGS to the
+  # target only, not to build scripts and proc macros, when --target is given.
+  local rust_static="-C target-feature=+crt-static -C link-arg=-static -C link-self-contained=yes"
+  local rustflags=""
+  case "${CROSS_COMPILE}" in
+  *-linux-musl)
+    rustflags="-C link-args=-lpthread -C link-args=-lm -C link-args=-lc ${rust_static}"
+    ;;
+  *-windows-gnu)
+    rustflags="${rust_static}"
+    ;;
+  esac
+  declare -x RUSTFLAGS="${RUSTFLAGS:-} ${rustflags}"
+  declare -x CARGO_HOME="$(project_root)/.cache/cargo"
+
   nicely "${TASK_DIR}/build"
 }
 
