@@ -166,8 +166,8 @@ ENV RUSTUP_HOME="/usr/local/rustup"
 ENV CARGO_HOME="/usr/local/cargo"
 ENV PATH="${CARGO_HOME}/bin:${PATH}"
 COPY --link "dev/docker/files/fetch" "dev/docker/files/checksums" "dev/docker/files/install-rust" "/"
-COPY --link "rust-toolchain.toml" "/tmp/rust/"
-RUN /install-rust "/tmp/rust" "${CROSS_COMPILE}"
+COPY --link "rust-toolchain.toml" "/rust-toolchain/"
+RUN /install-rust "/rust-toolchain" "${CROSS_COMPILE}"
 
 ARG USER=user
 ARG GROUP=user
