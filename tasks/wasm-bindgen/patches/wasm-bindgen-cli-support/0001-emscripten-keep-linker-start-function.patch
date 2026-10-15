@@ -3,19 +3,23 @@ Keep the linker start function in Emscripten mode
 With shared memory (`-pthread`), wasm-ld makes the data segments passive and
 puts `__wasm_init_memory`, which initializes them, into the start section.
 wasm-bindgen moves every start function to the export `__wbindgen_start`
-(`unstart_start_function()` in `src/js/mod.rs`). emcc then fails in
+(`unstart_start_function()` in `src/transforms/mod.rs`), which its JavaScript
+calls after instantiation, so the data segments are no longer initialized when
+the module is instantiated. emcc reads the strings of `EM_JS` and `EM_ASM` code
+from the data segments through that start function; for a module that has such
+strings (for example with `-sMALLOC=mimalloc`) it fails in
 `tools/extract_metadata.py`, `get_passive_segment_offsets()`, with
-`assert start_func_index is not None`, so every threaded Emscripten build
-fails. In Emscripten mode this patch takes the linker start function aside
-before processing and puts it back into the start section at the end; only the
-start code of wasm-bindgen goes to `__wbindgen_start`. Single-threaded modules
-have no start function, so the patch changes nothing for them.
+`assert start_func_index is not None`. In Emscripten mode this patch takes the
+linker start function aside before processing and puts it back into the start
+section at the end; only the start code of wasm-bindgen goes to
+`__wbindgen_start`. Single-threaded modules have no start function, so the
+patch changes nothing for them.
 
 Upstream has no issue and no fix for this defect.
 
 On a version bump: the patch must apply without fuzz, and a threaded
-Emscripten module (`-pthread`, Rust std built with `+atomics`) must link with
-the patched CLI.
+Emscripten module (`-pthread`, `-sMALLOC=mimalloc`, Rust std built with
+`+atomics`) must link with the patched CLI and keep its start section.
 
 --- a/src/lib.rs
 +++ b/src/lib.rs
