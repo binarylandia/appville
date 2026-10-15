@@ -1,0 +1,155 @@
+#!/usr/bin/env bash
+#
+# Usage: $0
+#
+# Build the wasm-bindgen CLI for CROSS_COMPILE from the upstream crates.io
+# packages plus the patches in patches/<crate>/, and package it. dev/cross/build
+# sets the environment; run it through dev/cross/all or dev/cross/build.
+#
+# The wasm-bindgen-cli package carries the Cargo.lock of the upstream release,
+# so the build resolves the same dependencies as upstream. The patched crates
+# replace their crates.io copies through a [patch] table; the lockfile then
+# differs from upstream only in the source and checksum of the patched crates,
+# which check_lockfile verifies.
+#
+# shellcheck disable=SC2155
+set -euo pipefail
+trap "exit" INT
+# shellcheck source=./../../dev/lib/utils.sh
+source "${BASH_SOURCE%/*}/../../dev/lib/utils.sh"
+
+export CROSS_COMPILE="${CROSS_COMPILE:?}"
+export BUILD_TIME="${BUILD_TIME:?}"
+export TASK_NAME="${TASK_NAME:?}"
+export TASK_DIR="${TASK_DIR:?}"
+export BUILD_DIR="${BUILD_DIR:?}"
+export INSTALL_DIR="${INSTALL_DIR:?}"
+export OUT_DIR="${OUT_DIR:?}"
+
+NAME="${TASK_NAME}"
+VERSION="0.2.129"
+CLI_CRATE="wasm-bindgen-cli"
+CRATES_URL="https://static.crates.io/crates"
+
+# Download a crate of this version, verify it against the checksums file, and
+# unpack it into the given directory.
+function fetch_crate() {
+  local crate="${1:?}"
+  local dest_dir="${2:?}"
+  local file="${crate}-${VERSION}.crate"
+  local expected
+  expected="$(awk -v name="${file}" '$2 == name { print $1 }' "${TASK_DIR}/checksums")"
+  if [[ -z "${expected}" ]]; then
+    err "No checksum recorded for ${file} in ${TASK_DIR}/checksums"
+    return 1
+  fi
+  curl -fsSL --retry 3 -o "${dest_dir}/${file}" "${CRATES_URL}/${crate}/${file}"
+  local actual
+  actual="$(sha256sum "${dest_dir}/${file}" | cut -d' ' -f1)"
+  if [[ "${actual}" != "${expected}" ]]; then
+    err "Checksum mismatch for ${file}: expected ${expected}, got ${actual}"
+    return 1
+  fi
+  tar -xzf "${dest_dir}/${file}" -C "${dest_dir}"
+}
+
+# Check that the lockfile differs from the upstream one only in the source and
+# checksum of the patched crates, which are path dependencies now.
+function check_lockfile() {
+  local upstream="${1:?}"
+  local patched="${2:?}"
+  shift 2
+  python3 - "${upstream}" "${patched}" "$@" <<'EOF'
+import sys
+import tomllib
+
+upstream_path, patched_path, *crates = sys.argv[1:]
+with open(upstream_path, "rb") as f:
+    upstream = tomllib.load(f)["package"]
+with open(patched_path, "rb") as f:
+    patched = tomllib.load(f)["package"]
+
+expected = []
+for package in upstream:
+    package = dict(package)
+    if package["name"] in crates:
+        if not package.get("source", "").startswith("registry+"):
+            sys.exit(f"{package['name']} is not a registry package in the upstream lockfile")
+        package.pop("source")
+        package.pop("checksum")
+    expected.append(package)
+
+if expected != patched:
+    sys.exit("Cargo.lock differs from upstream beyond the patched crates")
+EOF
+}
+
+build_dir="$(abspath "${BUILD_DIR}")/${NAME}"
+install_dir="$(abspath "${INSTALL_DIR}")"
+out_dir="$(abspath "${OUT_DIR}")"
+src_dir="${build_dir}/src-${VERSION}"
+
+rm -rf "${src_dir}"
+mkdir -p "${src_dir}" "${install_dir}" "${out_dir}"
+
+fetch_crate "${CLI_CRATE}" "${src_dir}"
+
+patch_config=()
+patched_crates=()
+for patch_dir in "${TASK_DIR}/patches"/*/; do
+  crate="$(basename "${patch_dir}")"
+  fetch_crate "${crate}" "${src_dir}"
+  for patch_file in "${patch_dir}"*.patch; do
+    info "Applying ${crate}/$(basename "${patch_file}")"
+    patch -d "${src_dir}/${crate}-${VERSION}" -p1 --forward --fuzz=0 <"${patch_file}"
+  done
+  patch_config+=(--config="patch.crates-io.${crate}.path=\"${src_dir}/${crate}-${VERSION}\"")
+  patched_crates+=("${crate}")
+done
+
+pushd "${src_dir}/${CLI_CRATE}-${VERSION}" >/dev/null
+{
+  cp "Cargo.lock" "Cargo.lock.upstream"
+  cargo "${patch_config[@]}" metadata --format-version=1 >/dev/null
+  check_lockfile "Cargo.lock.upstream" "Cargo.lock" "${patched_crates[@]}"
+
+  cargo "${patch_config[@]}" build \
+    --locked \
+    --release \
+    --target="${CROSS_COMPILE}" \
+    --target-dir="${build_dir}/target" \
+    --bin="${NAME}" \
+    2>&1 | log "${build_dir}/build.log"
+
+  ext="$(guess_ext "${CROSS_COMPILE}")"
+  bin="${build_dir}/target/${CROSS_COMPILE}/release/${NAME}${ext}"
+
+  case "${CROSS_COMPILE}" in
+  *-apple-darwin)
+    arch="${CROSS_COMPILE%%-*}"
+    description="$(file -b "${bin}")"
+    if [[ "${description}" != "Mach-O 64-bit ${arch/aarch64/arm64} executable"* ]]; then
+      err "Expected a ${arch} Mach-O executable, got: ${description}"
+      exit 1
+    fi
+    ;;
+  *)
+    version_line="$(WINEDEBUG="-all" "${CROSS_RUNNER:?}" "${bin}" --version | tr -d '\r')"
+    if [[ "${version_line}" != "${NAME} ${VERSION}" ]]; then
+      err "Expected '${NAME} ${VERSION}' from ${bin} --version, got '${version_line}'"
+      exit 1
+    fi
+    ;;
+  esac
+
+  install -D -m 0755 -s --strip-program="${STRIP:-strip}" "${bin}" "${install_dir}/bin/${NAME}${ext}"
+  install -D -m 0644 "LICENSE-APACHE" "${install_dir}/share/${NAME}/LICENSE-APACHE"
+  install -D -m 0644 "LICENSE-MIT" "${install_dir}/share/${NAME}/LICENSE-MIT"
+  for patch_dir in "${TASK_DIR}/patches"/*/; do
+    crate="$(basename "${patch_dir}")"
+    install -D -m 0644 -t "${install_dir}/share/${NAME}/patches/${crate}" "${patch_dir}"*.patch
+  done
+
+  package_all "${install_dir}" "${out_dir}/${NAME}-${VERSION}-static-${CROSS_COMPILE}-${BUILD_TIME}"
+}
+popd >/dev/null

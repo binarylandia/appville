@@ -1,0 +1,67 @@
+Keep the linker start function in Emscripten mode
+
+With shared memory (`-pthread`), wasm-ld makes the data segments passive and
+puts `__wasm_init_memory`, which initializes them, into the start section.
+wasm-bindgen moves every start function to the export `__wbindgen_start`
+(`unstart_start_function()` in `src/js/mod.rs`). emcc then fails in
+`tools/extract_metadata.py`, `get_passive_segment_offsets()`, with
+`assert start_func_index is not None`, so every threaded Emscripten build
+fails. In Emscripten mode this patch takes the linker start function aside
+before processing and puts it back into the start section at the end; only the
+start code of wasm-bindgen goes to `__wbindgen_start`. Single-threaded modules
+have no start function, so the patch changes nothing for them.
+
+Upstream has no issue and no fix for this defect.
+
+On a version bump: the patch must apply without fuzz, and a threaded
+Emscripten module (`-pthread`, Rust std built with `+atomics`) must link with
+the patched CLI.
+
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -417,6 +417,23 @@
+             bail!("--experimental-reset-state-function is only supported for --target module, --target web, or --target nodejs")
+         }
+ 
++        // With shared memory, wasm-ld makes the data segments passive and
++        // initializes them in a start function. Emscripten runs that start
++        // function at instantiation on every thread and reads the segments
++        // through it, so it must stay in the start section; only the start
++        // code that wasm-bindgen adds moves to `__wbindgen_start`. The
++        // temporary export keeps the function alive meanwhile; its name must
++        // not start with `__wbindgen`, because `unexport_intrinsics()` deletes
++        // those exports.
++        let linker_start = if self.mode.emscripten() {
++            module.start.take().map(|id| {
++                module.exports.add("__binarylandia_linker_start", id);
++                id
++            })
++        } else {
++            None
++        };
++
+         let thread_count = if self.mode.emscripten() {
+             // Emscripten owns multithreading bootstrap logic.
+             None
+@@ -594,6 +611,21 @@
+             emscripten_extern_pre_js,
+         };
+ 
++        if let Some(id) = linker_start {
++            let export = module
++                .exports
++                .iter()
++                .find(|export| export.name == "__binarylandia_linker_start")
++                .map(walrus::Export::id);
++            if let Some(export) = export {
++                module.exports.delete(export);
++            }
++            if !module.funcs.iter().any(|func| func.id() == id) {
++                bail!("the linker start function was removed");
++            }
++            module.start = Some(id);
++        }
++
+         Ok(Output {
+             module,
+             stem: stem.to_string(),
