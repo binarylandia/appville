@@ -121,7 +121,9 @@ export -f get_bin_dir
 
 function guess_ext() {
   local target="${1:-}"
-  [[ "$target" =~ (mingw|windows) ]] && echo ".exe"
+  if [[ "$target" =~ (mingw|windows) ]]; then
+    echo ".exe"
+  fi
 }
 export -f guess_ext
 
