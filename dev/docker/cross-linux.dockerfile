@@ -39,6 +39,7 @@ RUN set -euxo pipefail >/dev/null \
   cmake \
   curl \
   file \
+  gcc \
   git \
   gzip \
   libc6-dev \
@@ -147,12 +148,13 @@ ENV C_INCLUDE_PATH="${PREFIX_CROSS}/include"
 ENV CPLUS_INCLUDE_PATH="${PREFIX_CROSS}/include"
 ENV LIBRARY_PATH="${PREFIX_CROSS}/lib:${PREFIX_CROSS}/lib64:${LIBRARY_PATH}"
 
-# Rust: the cross toolchain links the target, the host GCC links build scripts
-# and proc macros. In the x86_64-unknown-linux-gnu image both are the same
+# Rust: the cross toolchain links the target, and the GCC of Debian compiles
+# and links build scripts and proc macros. The host GCC in /usr/local cannot
+# link them: it does not know the multiarch layout of Debian and finds no C
+# runtime start files. In the x86_64-unknown-linux-gnu image both are the same
 # target, and the second line wins.
-ENV HOST_CC="${HOSTCC}"
-ENV HOST_CXX="${HOSTCXX}"
-ENV CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER="${HOSTCC}"
+ENV HOST_CC="/usr/bin/gcc"
+ENV CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER="/usr/bin/gcc"
 ENV CARGO_TARGET_${CROSS_COMPILE_UPPER}_LINKER="${CROSS_GCC_DIR}/bin/${CROSS_GCC_TRIPLET}-gcc"
 ENV CARGO_TARGET_${CROSS_COMPILE_UPPER}_AR="${CROSS_GCC_DIR}/bin/${CROSS_GCC_TRIPLET}-gcc-ar"
 ENV CARGO_TARGET_${CROSS_COMPILE_UPPER}_RUNNER="${CROSS_RUNNER}"
