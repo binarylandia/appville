@@ -134,7 +134,7 @@ pushd "${src_dir}/${CLI_CRATE}-${VERSION}" >/dev/null
     fi
     ;;
   *)
-    version_line="$(WINEDEBUG="-all" "${CROSS_RUNNER:?}" "${bin}" --version | tr -d '\r')"
+    version_line="$(cross_run "${bin}" --version | tr -d '\r')"
     if [[ "${version_line}" != "${NAME} ${VERSION}" ]]; then
       err "Expected '${NAME} ${VERSION}' from ${bin} --version, got '${version_line}'"
       exit 1

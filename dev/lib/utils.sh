@@ -248,6 +248,23 @@ function fetch_tarball() {
 }
 export -f fetch_tarball
 
+# Run a program built for CROSS_COMPILE with the runner of the target (qemu for
+# Linux, Wine for Windows). A Wine prefix gets the bcryptprimitives.dll stub
+# that Rust programs need.
+function cross_run() {
+  local bin="${1:?}"
+  shift
+  if [[ "${CROSS_COMPILE:?}" =~ (mingw|windows) ]]; then
+    local wine_prefix="${HOME}/.wine"
+    mkdir -p "${wine_prefix}/drive_c/windows/system32"
+    cp "/opt/wine/bcryptprimitives.dll" "${wine_prefix}/drive_c/windows/system32/"
+    WINEPREFIX="${wine_prefix}" WINEDEBUG="-all" "${CROSS_RUNNER:?}" "${bin}" "$@"
+  else
+    "${CROSS_RUNNER:?}" "${bin}" "$@"
+  fi
+}
+export -f cross_run
+
 function getenv_cross() {
   local varname="${1:?}"
   local target="${2:-${CROSS_COMPILE:?}}"

@@ -169,6 +169,11 @@ COPY --link "dev/docker/files/fetch" "dev/docker/files/checksums" "dev/docker/fi
 COPY --link "rust-toolchain.toml" "/rust-toolchain/"
 RUN /install-rust "/rust-toolchain" "${CROSS_COMPILE}"
 
+# Rust programs import bcryptprimitives.dll, which the Wine of Debian 12 lacks;
+# cross_run of dev/lib/utils.sh copies this stub into the Wine prefix.
+COPY --link "dev/docker/files/install-wine-bcryptprimitives" "/"
+RUN if [[ "${CROSS_COMPILE}" =~ (mingw|windows) ]]; then /install-wine-bcryptprimitives "/opt/wine"; fi
+
 ARG USER=user
 ARG GROUP=user
 ARG UID
