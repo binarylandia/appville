@@ -14,7 +14,7 @@ function build() {
   declare -x TASK_NAME="${name}"
   declare -x TASK_DIR="$(project_root)/tasks/${TASK_NAME}"
   declare -x BUILD_DIR="${BUILD_DIR:-"$(project_root)/.build/${CROSS_COMPILE}"}"
-  declare -x INSTALL_DIR="${INSTALL_DIR:-"$(project_root)/.install/${CROSS_COMPILE}/${BUILD_TIME}"}"
+  declare -x INSTALL_DIR="${INSTALL_DIR:-"$(project_root)/.install/${CROSS_COMPILE}/${BUILD_TIME}/${TASK_NAME}"}"
   declare -x OUT_DIR="${OUT_DIR:-"$(project_root)/.out/${BUILD_TIME}"}"
 
   declare -x SYSROOT="${CROSS_SYSROOT:?}"
